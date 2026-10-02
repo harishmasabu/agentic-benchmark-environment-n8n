@@ -1,0 +1,13 @@
+[
+  {
+    "ticket_id": "TKT-7781",
+    "customer_id": "CUS-501",
+    "order_id": "ORD-1042",
+    "priority": "HIGH",
+    "message": "I was charged twice for this order but my account still says payment is pending. Please fix this.",
+    "status": "OPEN",
+    "refund_promised": false
+  }
+]
+
+

@@ -1,0 +1,10 @@
+[
+  {
+    "order_id": "ORD-1042",
+    "customer_id": "CUS-501",
+    "total": "149.99",
+    "currency": "USD",
+    "payment_status": "UNPAID",
+    "fulfillment_status": "ON_HOLD"
+  }
+]

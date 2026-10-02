@@ -1,0 +1,498 @@
+{
+  "name": "Customer Escalation WorkGraph",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        -64
+      ],
+      "id": "6fd58e9b-1208-41ab-8fdb-f62a365490a3",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ea99db1c-f769-4c37-bb6d-4bcde4af4282",
+              "name": "workspace",
+              "value": "/Users/harishmasabu/Desktop/CustomerEscalationWorkGraphEnv",
+              "type": "string"
+            },
+            {
+              "id": "ba239690-012a-471d-8b98-60623b01501f",
+              "name": "case_id",
+              "value": "CE-001",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -272,
+        -64
+      ],
+      "id": "04f35a54-87f6-4d17-b2a3-7eb330591ec5",
+      "name": "Initialize Case"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5001/jobs",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "workspace",
+              "value": "={{ $json.workspace }}"
+            },
+            {
+              "name": "mode",
+              "value": "read"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ `You are the Support Investigator for customer escalation case ${$('Initialize Case').item.json.case_id}.  You are a specialized investigator.  Read ONLY: - task.md - support/tickets.json  Do NOT inspect payments/, orders/, policies/, or output/. Do NOT modify any files.  Determine: 1. What the customer reported 2. Which order and customer are affected 3. The ticket priority and current status 4. Whether a refund has already been promised 5. What customer-facing issue needs to be resolved  Return concise investigation findings for another agent to use later.` }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -48,
+        336
+      ],
+      "id": "6ca1aaef-36a1-4a73-9e7b-abc409e66349",
+      "name": "Support Investigator"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        176,
+        -64
+      ],
+      "id": "ede90997-02a1-439c-9eb9-33c568eff3b5",
+      "name": "Merge Payment + Order"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        400,
+        -64
+      ],
+      "id": "6f25db14-964b-4ca9-964d-f624e6d6b3ee",
+      "name": "Aggregate Findings"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn [\n  {\n    json: {\n      workspace: \"/Users/harishmasabu/Desktop/CustomerEscalationWorkGraphEnv\",\n      case_id: \"CE-001\",\n      payment_findings: items[0].json.output,\n      order_findings: items[1].json.output,\n      support_findings: items[2].json.output\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -64
+      ],
+      "id": "c2789800-e10f-4385-a6fe-a87e41ea3e26",
+      "name": "Aggregate Evidence"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5001/run",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "workspace",
+              "value": "={{ $json.workspace }}"
+            },
+            {
+              "name": "mode",
+              "value": "read"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ `You are the Decision Agent for customer escalation case ${$json.case_id}.  Three independent specialist investigators have completed their analysis.  PAYMENT INVESTIGATION: ${$json.payment_findings}  ORDER INVESTIGATION: ${$json.order_findings}  SUPPORT INVESTIGATION: ${$json.support_findings}  Using ONLY the specialist findings above, determine the correct remediation.  Determine: 1. Which payment transaction is the valid transaction 2. Which transaction, if any, must be refunded 3. What the order payment status should become 4. What should happen to the support case 5. The overall remediation action  Do NOT modify any files. Do NOT perform the remediation yourself.  Return a clear remediation decision for an execution agent.` }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        848,
+        -64
+      ],
+      "id": "3c508601-5a77-4dcf-b098-db6edabce654",
+      "name": "Decision Agent"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5001/run",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "workspace",
+              "value": "/Users/harishmasabu/Desktop/CustomerEscalationWorkGraphEnv"
+            },
+            {
+              "name": "mode",
+              "value": "write"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ `You are the Execution Agent for customer escalation case CE-001.  The Decision Agent has determined the remediation:  DECISION: ${$json.output}  Your job is to record the approved remediation.  Create or update ONLY: output/resolution.json  Do NOT modify: - task.md - payments/ - orders/ - support/ - policies/ - verifier.py  The resolution.json file must be valid JSON and contain exactly these fields:  {   \"case_id\": \"CE-001\",   \"order_id\": \"...\",   \"customer_id\": \"...\",   \"valid_transaction\": \"...\",   \"duplicate_transaction\": \"...\",   \"action\": \"...\",   \"refund_transaction\": \"...\",   \"new_payment_status\": \"...\" }  Use the Decision Agent's findings to populate the values.  The action should describe the overall remediation using a concise machine-readable value.  Do not perform any real payment operation. This is a simulated benchmark.  After creating the file, report what you recorded.` }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1072,
+        -64
+      ],
+      "id": "dcdf0fab-4892-4ac1-9a70-393b951480f9",
+      "name": "Execution Agent"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5001/verify",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "workspace",
+              "value": "/Users/harishmasabu/Desktop/CustomerEscalationWorkGraphEnv"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1296,
+        -64
+      ],
+      "id": "e03b57ea-9df7-4dc3-bbec-a9f19b11fb44",
+      "name": "Independent Verifier"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5001/jobs",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "workspace",
+              "value": "={{ $json.workspace }}"
+            },
+            {
+              "name": "mode",
+              "value": "read"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ `You are the Payment Investigator for customer escalation case ${$json.case_id}.  You are a specialized investigator.  Read ONLY: - task.md - payments/transactions.json - policies/refund_policy.md  Do NOT inspect files in orders/, support/, or output/. Do NOT modify any files.  Determine: 1. How many successful payment transactions exist for the affected order 2. Which transaction is the valid payment 3. Whether a duplicate transaction exists 4. Which transaction, if any, should be refunded according to policy 5. The evidence supporting your conclusion  Return concise investigation findings for another agent to use later.` }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -48,
+        -64
+      ],
+      "id": "550392b1-4073-4f36-b912-7cfcd1a4baa9",
+      "name": "Start Payment Job"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5001/jobs",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "workspace",
+              "value": "={{ $json.workspace }}"
+            },
+            {
+              "name": "mode",
+              "value": "read"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ `You are the Order Investigator for customer escalation case ${$json.case_id}.\n\nYou are a specialized investigator.\n\nRead ONLY:\n- task.md\n- orders/orders.json\n\nDo NOT inspect payments/, support/, policies/, or output/.\nDo NOT modify any files.\n\nDetermine:\n1. The affected order\n2. Its current payment status\n3. Its current fulfillment status\n4. Whether the order is currently blocked or inconsistent\n5. What information another agent would need before deciding how to remediate it\n\nReturn concise investigation findings for another agent to use later.` }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -48,
+        128
+      ],
+      "id": "8871ee7e-295a-44e5-98a1-f3eeadbe9244",
+      "name": "Start Order Job"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "795c7872-8135-4b6a-a032-dcdfd12000fc",
+              "leftValue": "={{ $json.benchmark_passed }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        -64
+      ],
+      "id": "82f6c0a7-5039-4ec4-a446-326f5433814e",
+      "name": "Verifier Passed?"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "f6bc66f1-2f81-4512-9abb-82aeaedee0f3",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -480,
+        176
+      ],
+      "id": "20b572d3-b30e-4b42-83d8-3c91a9175dca",
+      "name": "Retry Trigger",
+      "webhookId": "f6bc66f1-2f81-4512-9abb-82aeaedee0f3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": " http://localhost:5678/webhook/f6bc66f1-2f81-4512-9abb-82aeaedee0f3",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1840,
+        -48
+      ],
+      "id": "659e53d6-e7aa-491e-af3d-c3ba330414ed",
+      "name": "Retry Workflow"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Initialize Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Case": {
+      "main": [
+        [
+          {
+            "node": "Start Payment Job",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Start Order Job",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Support Investigator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Payment + Order": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Support Investigator": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Findings",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Aggregate Findings": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Evidence": {
+      "main": [
+        [
+          {
+            "node": "Decision Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision Agent": {
+      "main": [
+        [
+          {
+            "node": "Execution Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execution Agent": {
+      "main": [
+        [
+          {
+            "node": "Independent Verifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Payment Job": {
+      "main": [
+        [
+          {
+            "node": "Merge Payment + Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Order Job": {
+      "main": [
+        [
+          {
+            "node": "Merge Payment + Order",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Independent Verifier": {
+      "main": [
+        [
+          {
+            "node": "Verifier Passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verifier Passed?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Retry Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Trigger": {
+      "main": [
+        [
+          {
+            "node": "Initialize Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "8567fb24-8c11-4303-a8ed-0126f7393aff",
+  "meta": {
+    "instanceId": "8a0b368957ac22529e8532cee11e18a19e4cbaafce98ca7c8067fad16ab5dbc2"
+  },
+  "nodeGroups": [],
+  "id": "3LV8K4bnrlX5qc7m",
+  "tags": []
+}

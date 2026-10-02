@@ -1,0 +1,19 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Environment variables / secrets
+.env
+.env.*
+*.key
+
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# Logs
+*.log
